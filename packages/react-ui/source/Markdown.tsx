@@ -49,18 +49,17 @@ const CodeBlock = ({ value, language }: { value: string; language: string }) =>
 const TextRenderer = ({ children }: { children: string }) => <>{children}</>
 
 type MarkdownProps = ReactMarkdownProps & {
-	source: string | undefined
 	className?: string
 }
 
 export const Markdown = ({
-	source,
+	children,
 	className = '',
 	renderers = {},
 	...otherProps
 }: MarkdownProps) => (
 	<ReactMarkdown
-		source={source}
+		children={children}
 		className={`markdown ${className}`}
 		renderers={{
 			link: LinkRenderer,

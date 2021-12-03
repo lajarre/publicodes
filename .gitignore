@@ -3,7 +3,7 @@
 /tmp
 .DS_Store
 yarn-error.log
-package-lock.json
+yarn.lock
 node_modules/
 .env
 dist/

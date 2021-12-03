@@ -5,9 +5,9 @@ runs:
     - uses: actions/cache@v2
       with:
         path: '**/node_modules'
-        key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}-v2
+        key: ${{ runner.os }}-modules-${{ hashFiles('**/package-lock.json') }}-v1
     - uses: actions/setup-node@v1
       with:
-        node-version: 14
-    - run: yarn install --frozen-lockfile
+        node-version: 16
+    - run: npm ci
       shell: bash

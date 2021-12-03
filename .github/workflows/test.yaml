@@ -7,7 +7,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/install
-      - run: yarn lint:prettier
+      - run: npm run lint:prettier
 
   test:
     name: Unit tests
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/install
-      - run: yarn test
+      - run: npm run test
 
   test-type:
     name: Type checking
@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/install
-      - run: yarn test:type
+      - run: npm run test:type
 
   test-example-app:
     name: Test example app
@@ -33,8 +33,8 @@ jobs:
       - uses: ./.github/actions/install
       - run: |
           cd ./examples/publicodes-react
-          yarn install
-          yarn test
+          npm ci
+          npm test
 
   test-packages-versioning:
     name: Enforce consistent package versioning

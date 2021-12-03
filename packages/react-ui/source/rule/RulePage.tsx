@@ -116,7 +116,7 @@ export function Rule({ dottedName, language, subEngineId }: RuleProps) {
 			)}
 			<RuleHeader dottedName={dottedName} />
 			<section>
-				<Markdown source={description || question} />
+				<Markdown children={description || question || ''} />
 			</section>
 			{
 				<>
@@ -182,7 +182,7 @@ export function Rule({ dottedName, language, subEngineId }: RuleProps) {
 				<>
 					<h3>Note</h3>
 					<div className="ui__ notice">
-						<Markdown source={rule.rawNode.note} />
+						<Markdown children={rule.rawNode.note} />
 					</div>
 				</>
 			)}

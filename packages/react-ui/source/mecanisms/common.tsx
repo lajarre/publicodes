@@ -213,13 +213,13 @@ export default function RuleExplanation({
 					<pre>{name}</pre>
 				</h2>
 			)}
-			<Markdown source={description} />
+			<Markdown children={description} />
 			{exemples && (
 				<>
 					{Object.entries(exemples).map(([name, exemple]) => (
 						<React.Fragment key={name}>
 							<h3>{name === 'base' ? 'Exemple' : capitalise0(name)}</h3>
-							<Markdown source={`\`\`\`yaml\n${exemple}\n\`\`\``} />
+							<Markdown children={`\`\`\`yaml\n${exemple}\n\`\`\``} />
 						</React.Fragment>
 					))}{' '}
 				</>
