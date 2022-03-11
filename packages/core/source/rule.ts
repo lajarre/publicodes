@@ -1,4 +1,5 @@
-import { ASTNode, EvaluatedNode } from './AST/types'
+import Engine from '.'
+import { ASTNode, EvaluatedNode, MissingVariables } from './AST/types'
 import { warning } from './error'
 import { bonus, mergeMissing } from './evaluation'
 import { registerEvaluationFunction } from './evaluationFunctions'
@@ -137,30 +138,64 @@ export default function parseRule(
 	return parse(rawRule.nom, context) as ReferenceNode
 }
 
-registerEvaluationFunction('rule', function evaluate(node) {
-	const firstNullableParent = node.explanation.parents.find(
-		(ref) => this.ruleUnits.get(ref)?.isNullable
+export function disablingParent(
+	engine: Engine,
+	node: RuleNode
+): {
+	ruleDisabledByItsParent: boolean
+	parentMissingVariables: MissingVariables
+	nullableParent?: ASTNode
+} {
+	const nullableParent = node.explanation.parents.find(
+		(ref) => engine.ruleUnits.get(ref)?.isNullable
 	)
 
-	let nullableParentEvaluation = {
-		nodeValue: undefined,
-		missingVariables: {},
-	} as EvaluatedNode
-
-	if (
-		firstNullableParent &&
-		// TODO: remove this condition and the associated "parentRuleStack", cycles
-		// should be detected and avoided at parse time.
-		!this.cache._meta.parentRuleStack.includes(node.dottedName)
-	) {
-		this.cache._meta.parentRuleStack.unshift(node.dottedName)
-		nullableParentEvaluation = this.evaluate(firstNullableParent)
-		this.cache._meta.parentRuleStack.shift()
+	if (!nullableParent) {
+		return { ruleDisabledByItsParent: false, parentMissingVariables: {} }
 	}
 
-	const ruleDisabledByItsParent =
-		nullableParentEvaluation.nodeValue === null ||
-		nullableParentEvaluation.nodeValue === false
+	let parentMissingVariables = {}
+
+	if (
+		// TODO: remove this condition and the associated "parentRuleStack", cycles
+		// should be detected and avoided at parse time.
+		!engine.cache._meta.parentRuleStack.includes(node.dottedName)
+	) {
+		engine.cache._meta.parentRuleStack.unshift(node.dottedName)
+		const parentApplicability = engine.evaluateApplicability(nullableParent)
+		engine.cache._meta.parentRuleStack.shift()
+		if (!parentApplicability.isApplicable) {
+			return {
+				ruleDisabledByItsParent: true,
+				parentMissingVariables: parentApplicability.missingVariables ?? {},
+				nullableParent,
+			}
+		}
+		parentMissingVariables = parentApplicability.missingVariables
+	}
+
+	if (engine.ruleUnits.get(nullableParent)?.type === 'boolean') {
+		const parentEvaluation = engine.evaluate(nullableParent)
+		if (parentEvaluation.nodeValue === false) {
+			return {
+				ruleDisabledByItsParent: true,
+				parentMissingVariables: parentEvaluation.missingVariables,
+				nullableParent,
+			}
+		}
+		parentMissingVariables = parentEvaluation.missingVariables
+	}
+
+	return {
+		ruleDisabledByItsParent: false,
+		parentMissingVariables,
+		nullableParent,
+	}
+}
+
+registerEvaluationFunction('rule', function evaluate(node) {
+	const { ruleDisabledByItsParent, parentMissingVariables, nullableParent } =
+		disablingParent(this, node)
 
 	let valeurEvaluation: EvaluatedNode = {
 		...node.explanation.valeur,
@@ -201,24 +236,21 @@ registerEvaluationFunction('rule', function evaluate(node) {
 		}
 	}
 
-	const parentMissing = Object.keys(nullableParentEvaluation.missingVariables)
-	const selfMissing = Object.keys(valeurEvaluation.missingVariables)
-
 	const evaluation = {
 		...node,
 		explanation: {
-			nullableParent: nullableParentEvaluation,
 			parents: node.explanation.parents,
 			valeur: valeurEvaluation,
+			nullableParent,
 		},
 		nodeValue: valeurEvaluation.nodeValue,
 		missingVariables: mergeMissing(
 			valeurEvaluation.missingVariables,
-			bonus(nullableParentEvaluation.missingVariables)
+			bonus(parentMissingVariables)
 		),
 		missing: {
-			parent: parentMissing,
-			self: selfMissing,
+			parent: Object.keys(parentMissingVariables),
+			self: Object.keys(valeurEvaluation.missingVariables),
 		},
 		...(valeurEvaluation &&
 			'unit' in valeurEvaluation && { unit: valeurEvaluation.unit }),

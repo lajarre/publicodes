@@ -1,4 +1,9 @@
-import { type ASTNode, type EvaluatedNode, type NodeKind } from './AST/types'
+import {
+	MissingVariables,
+	type ASTNode,
+	type EvaluatedNode,
+	type NodeKind,
+} from './AST/types'
 import { evaluationFunctions } from './evaluationFunctions'
 import parse from './parse'
 import parsePublicodes, {
@@ -10,7 +15,7 @@ import {
 	inlineReplacements,
 	type ReplacementRule,
 } from './replacement'
-import { type Rule, type RuleNode } from './rule'
+import { disablingParent, type Rule, type RuleNode } from './rule'
 import * as utils from './ruleUtils'
 import { formatUnit, getUnitKey } from './units'
 
@@ -214,6 +219,72 @@ export default class Engine<Name extends string = string> {
 		return evaluatedNode
 	}
 
+	evaluateApplicability(value: PublicodesExpression | ASTNode): {
+		isApplicable: boolean
+		missingVariables: MissingVariables
+	} {
+		let node
+		if (!value || typeof value !== 'object' || !('nodeKind' in value)) {
+			node = this.parse(value, {
+				dottedName: 'evaluation',
+				parsedRules: {},
+				...this.options,
+			})
+		} else {
+			node = value as ASTNode
+		}
+
+		if (!this.ruleUnits.get(node)?.isNullable) {
+			return { isApplicable: true, missingVariables: {} }
+		}
+		switch (node.nodeKind) {
+			case 'rule':
+				const { ruleDisabledByItsParent, parentMissingVariables } =
+					disablingParent(this, node)
+				if (ruleDisabledByItsParent) {
+					return {
+						isApplicable: false,
+						missingVariables: parentMissingVariables,
+					}
+				}
+				return this.evaluateApplicability(node.explanation.valeur)
+
+			case 'reference':
+				if (!node.dottedName) {
+					throw new Error('Missing dottedName')
+				}
+				return this.evaluateApplicability(this.parsedRules[node.dottedName])
+
+			case 'applicable si':
+				const condition = this.evaluate(node.explanation.condition)
+				if (condition.nodeValue === false || condition.nodeValue === null) {
+					return {
+						isApplicable: false,
+						missingVariables: condition.missingVariables,
+					}
+				}
+				return this.evaluateApplicability(node.explanation.valeur)
+
+			case 'non applicable si':
+				const negCondition = this.evaluate(node.explanation.condition)
+				if (
+					negCondition.nodeValue !== false &&
+					negCondition.nodeValue !== null
+				) {
+					return {
+						isApplicable: false,
+						missingVariables: negCondition.missingVariables,
+					}
+				}
+				return this.evaluateApplicability(node.explanation.valeur)
+		}
+		const evaluatedNode = this.evaluate(node)
+		return {
+			isApplicable: this.evaluate(node).nodeValue !== null,
+			missingVariables: evaluatedNode.missingVariables,
+		}
+	}
+
 	/**
 	 * Shallow Engine instance copy. Keeps references to the original Engine instance attributes.
 	 */
@@ -240,8 +311,7 @@ export function UNSAFE_isNotApplicable<DottedName extends string = string>(
 	engine: Engine<DottedName>,
 	dottedName: DottedName
 ): boolean {
-	return (
-		engine.ruleUnits.get(engine.parsedRules[dottedName] as any)?.isNullable ===
-			true && engine.evaluate(dottedName).nodeValue === null
-	)
+	console.warn('UNSAFE_isNotApplicable is deprecated')
+	console.warn('Use engine.evaluateApplicability(node).isApplicable instead')
+	return !engine.evaluateApplicability(dottedName).isApplicable
 }
